@@ -122,7 +122,6 @@
           /opt/mirror-registry/mirror-registry install
           --quayHostname {{ quay_hostname }}
           --quayRoot {{ quay_root }}
-          --targetPort {{ bastion.mirror_registry_port | default(8443) }}
           --initPassword {{ quay_init_password }}
           --verbose
       timeout: 600
