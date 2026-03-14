@@ -16,6 +16,11 @@
       failed_when: net_undefine.rc != 0 and 'not found' not in net_undefine.stderr
       changed_when: net_undefine.rc == 0
 
+    - name: Remove host split DNS dispatcher script
+      ansible.builtin.file:
+        path: "/etc/NetworkManager/dispatcher.d/99-dns-{{ cluster_network.name }}"
+        state: absent
+
 - name: Create network
   when: network_state == 'present'
   block:
@@ -54,3 +59,24 @@
       ansible.builtin.file:
         path: "/tmp/{{ cluster_network.name }}.xml"
         state: absent
+
+    - name: Configure host split DNS for cluster domain
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          if [ "$1" = "{{ cluster_network.bridge }}" ] && [ "$2" = "up" ]; then
+              resolvectl dns {{ cluster_network.bridge }} {{ cluster_network.gateway }}
+              resolvectl domain {{ cluster_network.bridge }} ~{{ cluster_name }}.{{ cluster_domain }}
+          fi
+        dest: "/etc/NetworkManager/dispatcher.d/99-dns-{{ cluster_network.name }}"
+        mode: "0755"
+
+    - name: Apply split DNS now
+      ansible.builtin.command:
+        cmd: "resolvectl dns {{ cluster_network.bridge }} {{ cluster_network.gateway }}"
+      changed_when: true
+
+    - name: Set split DNS domain routing
+      ansible.builtin.command:
+        cmd: "resolvectl domain {{ cluster_network.bridge }} ~{{ cluster_name }}.{{ cluster_domain }}"
+      changed_when: true
