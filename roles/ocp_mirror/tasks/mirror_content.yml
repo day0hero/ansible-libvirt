@@ -1,0 +1,72 @@
+---
+- name: Create oc-mirror workspace directory
+  ansible.builtin.file:
+    path: "{{ ocp_mirror_workspace }}/working-dir"
+    state: directory
+    mode: "0755"
+
+- name: Template ImageSetConfiguration
+  ansible.builtin.template:
+    src: imageset-config.yaml.j2
+    dest: "{{ ocp_mirror_workspace }}/imageset-config.yaml"
+    mode: "0644"
+
+- name: Run oc-mirror v2 (mirror-to-mirror)
+  ansible.builtin.command:
+    cmd: >-
+      oc-mirror
+      --config {{ ocp_mirror_workspace }}/imageset-config.yaml
+      docker://{{ _registry_url }}
+      --v2
+      --workspace file://{{ ocp_mirror_workspace }}/working-dir
+  environment:
+    DOCKER_CONFIG: /root/.docker
+  async: 14400
+  poll: 60
+  register: oc_mirror_result
+
+- name: Display oc-mirror summary
+  ansible.builtin.debug:
+    msg: "{{ oc_mirror_result.stdout_lines[-10:] }}"
+
+- name: Find generated IDMS files
+  ansible.builtin.find:
+    paths: "{{ ocp_mirror_workspace }}/working-dir/cluster-resources"
+    patterns: "idms-*.yaml"
+  register: _idms_files
+
+- name: Find generated ITMS files
+  ansible.builtin.find:
+    paths: "{{ ocp_mirror_workspace }}/working-dir/cluster-resources"
+    patterns: "itms-*.yaml"
+  register: _itms_files
+
+- name: Find generated CatalogSource files
+  ansible.builtin.find:
+    paths: "{{ ocp_mirror_workspace }}/working-dir/cluster-resources"
+    patterns: "cs-*.yaml"
+  register: _cs_files
+
+- name: Report generated cluster resources
+  ansible.builtin.debug:
+    msg: |
+      oc-mirror generated the following cluster resources:
+        IDMS: {{ _idms_files.files | map(attribute='path') | list }}
+        ITMS: {{ _itms_files.files | map(attribute='path') | list }}
+        CatalogSource: {{ _cs_files.files | map(attribute='path') | list }}
+      These will be applied post-install (see docs/06-post-install.md).
+
+- name: Verify mirrored release images in registry
+  ansible.builtin.uri:
+    url: "https://{{ _registry_url }}/v2/_catalog"
+    method: GET
+    force_basic_auth: true
+    url_username: "{{ quay_init_user }}"
+    url_password: "{{ quay_init_password }}"
+    validate_certs: true
+    return_content: true
+  register: _catalog
+
+- name: Display mirrored repositories
+  ansible.builtin.debug:
+    msg: "Registry contains {{ (_catalog.json.repositories | default([])) | length }} repositories"

@@ -1,0 +1,67 @@
+---
+# All-in-one: configure bastion, install Quay mirror registry, mirror OCP
+# content, and generate install-config.yaml -- everything needed to be ready
+# for `openshift-install`.
+#
+# Usage:
+#   ansible-playbook playbooks/bastion-mirror.yml \
+#     -e @inventory/group_vars/clusters/disconnected.yml \
+#     -e pull_secret_path=/path/to/pull-secret.json
+#
+# Optional overrides:
+#   -e ocp_version=stable-4.21
+#   -e ocp_release_version=4.21.0
+#   -e quay_init_password=<password>
+#   -e '{"imageset_operators": [{"catalog": "registry.redhat.io/redhat/redhat-operator-index:v4.21", "packages": [{"name": "local-storage-operator"}, {"name": "odf-operator"}]}]}'
+- name: All-in-one disconnected OpenShift bastion setup
+  hosts: bastions
+  gather_facts: true
+  vars_files:
+    - ../inventory/group_vars/clusters/disconnected.yml
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - bastion is defined
+          - cluster_name is defined
+          - cluster_domain is defined
+          - cluster_network is defined
+          - cluster_nodes | length > 0
+          - pull_secret_path is defined
+        fail_msg: >-
+          Missing required variables. Ensure you load the cluster var file
+          (-e @inventory/group_vars/clusters/disconnected.yml) and provide
+          -e pull_secret_path=/path/to/pull-secret.json
+
+    - name: Wait for bastion SSH
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+  roles:
+    - role: bastion
+    - role: ocp_mirror
+
+  post_tasks:
+    - name: All-in-one setup complete
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Bastion {{ bastion.name }} is fully configured.
+
+          Services:
+            HAProxy stats:     http://{{ bastion.ip }}:{{ bastion.haproxy_stats_port | default(9000) }}
+            Mirror registry:   https://{{ bastion.name }}.{{ cluster_name }}.{{ cluster_domain }}:{{ quay_port | default(8443) }}
+
+          Install artifacts:
+            install-config:    {{ ocp_install_dir | default('/opt/ocp-install') }}/install-config.yaml
+            Cluster resources: {{ ocp_mirror_workspace | default('/opt/ocp-mirror') }}/working-dir/cluster-resources/
+            Quay CA cert:      {{ quay_root | default('/opt/quay') }}/quay-rootCA/rootCA.pem
+
+          Next steps:
+            1. SSH to bastion:  ssh root@{{ bastion.ip }}
+            2. Review:          cat {{ ocp_install_dir | default('/opt/ocp-install') }}/install-config.yaml
+            3. Generate:        openshift-install create manifests --dir {{ ocp_install_dir | default('/opt/ocp-install') }}
+            4. Generate:        openshift-install create ignition-configs --dir {{ ocp_install_dir | default('/opt/ocp-install') }}
+            5. Serve ignition files and provision cluster VMs.
+          ============================================================

@@ -1,0 +1,55 @@
+---
+- name: Create install directory
+  ansible.builtin.file:
+    path: "{{ ocp_install_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Read Quay CA certificate
+  ansible.builtin.slurp:
+    src: "{{ quay_root }}/quay-rootCA/rootCA.pem"
+  register: _quay_ca_raw
+
+- name: Read merged pull secret
+  ansible.builtin.slurp:
+    src: /root/.docker/config.json
+  register: _merged_secret_raw
+
+- name: Set install-config variables
+  ansible.builtin.set_fact:
+    _quay_ca: "{{ _quay_ca_raw.content | b64decode }}"
+    _pull_secret_json: "{{ _merged_secret_raw.content | b64decode | from_json | to_json }}"
+    _worker_count: "{{ cluster_nodes | selectattr('role', 'equalto', 'worker') | list | length }}"
+    _master_count: "{{ cluster_nodes | selectattr('role', 'equalto', 'master') | list | length }}"
+
+- name: Template install-config.yaml
+  ansible.builtin.template:
+    src: install-config.yaml.j2
+    dest: "{{ ocp_install_dir }}/install-config.yaml"
+    mode: "0600"
+
+- name: Create install-config backup
+  ansible.builtin.copy:
+    src: "{{ ocp_install_dir }}/install-config.yaml"
+    dest: "{{ ocp_install_dir }}/install-config.yaml.bak"
+    mode: "0600"
+    remote_src: true
+
+- name: Display readiness summary
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      Bastion is ready for OpenShift installation.
+
+      Install config:    {{ ocp_install_dir }}/install-config.yaml
+      Backup:            {{ ocp_install_dir }}/install-config.yaml.bak
+      Mirror registry:   https://{{ _registry_url }}
+      Quay CA cert:      {{ quay_root }}/quay-rootCA/rootCA.pem
+      Cluster resources: {{ ocp_mirror_workspace }}/working-dir/cluster-resources/
+
+      Next steps:
+        1. Review {{ ocp_install_dir }}/install-config.yaml
+        2. openshift-install create manifests --dir {{ ocp_install_dir }}
+        3. openshift-install create ignition-configs --dir {{ ocp_install_dir }}
+        4. Serve ignition files and provision cluster VMs
+      ============================================================

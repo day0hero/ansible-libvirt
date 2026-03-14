@@ -1,0 +1,34 @@
+---
+ocp_version: "stable-4.21"
+ocp_release_channel: "stable-4.21"
+ocp_release_version: "4.21.0"
+ocp_clients_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/{{ ocp_version }}"
+
+# Quay mirror-registry
+mirror_registry_tarball_url: "https://mirror.openshift.com/pub/openshift-v4/clients/mirror-registry/latest/mirror-registry.tar.gz"
+quay_hostname: "{{ bastion.name }}.{{ cluster_name }}.{{ cluster_domain }}"
+quay_root: /opt/quay
+quay_port: 8443
+quay_init_user: init
+quay_init_password: "openshift"
+
+# Derived registry URL used by oc-mirror and install-config
+_registry_url: "{{ quay_hostname }}:{{ quay_port }}"
+
+# oc-mirror workspace and install directory
+ocp_mirror_workspace: /opt/ocp-mirror
+ocp_install_dir: /opt/ocp-install
+
+# Pull secret -- path on the ansible controller
+# Must be provided via -e pull_secret_path=/path/to/pull-secret.json
+# pull_secret_path: ""
+
+# ImageSetConfiguration: operators to mirror
+imageset_operators:
+  - catalog: "registry.redhat.io/redhat/redhat-operator-index:v4.21"
+    packages:
+      - name: local-storage-operator
+
+# Additional container images to mirror (optional)
+imageset_additional_images: []
+# - name: registry.redhat.io/ubi9/ubi:latest

@@ -1,0 +1,64 @@
+---
+- name: Install prerequisite packages
+  ansible.builtin.dnf:
+    name:
+      - jq
+      - tar
+      - gzip
+    state: present
+
+- name: Download OpenShift client tarball
+  ansible.builtin.get_url:
+    url: "{{ ocp_clients_url }}/openshift-client-linux.tar.gz"
+    dest: /tmp/openshift-client-linux.tar.gz
+    mode: "0644"
+
+- name: Extract oc and kubectl
+  ansible.builtin.command:
+    cmd: tar -xzf /tmp/openshift-client-linux.tar.gz -C /usr/local/bin oc kubectl
+    creates: /usr/local/bin/oc
+
+- name: Download openshift-install tarball
+  ansible.builtin.get_url:
+    url: "{{ ocp_clients_url }}/openshift-install-linux.tar.gz"
+    dest: /tmp/openshift-install-linux.tar.gz
+    mode: "0644"
+
+- name: Extract openshift-install
+  ansible.builtin.command:
+    cmd: tar -xzf /tmp/openshift-install-linux.tar.gz -C /usr/local/bin openshift-install
+    creates: /usr/local/bin/openshift-install
+
+- name: Download oc-mirror tarball
+  ansible.builtin.get_url:
+    url: "{{ ocp_clients_url }}/oc-mirror.rhel9.tar.gz"
+    dest: /tmp/oc-mirror.rhel9.tar.gz
+    mode: "0644"
+
+- name: Extract oc-mirror
+  ansible.builtin.command:
+    cmd: tar -xzf /tmp/oc-mirror.rhel9.tar.gz -C /usr/local/bin
+    creates: /usr/local/bin/oc-mirror
+
+- name: Set executable permissions on CLI tools
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: "0755"
+  loop:
+    - /usr/local/bin/oc
+    - /usr/local/bin/kubectl
+    - /usr/local/bin/openshift-install
+    - /usr/local/bin/oc-mirror
+
+- name: Verify CLI tools
+  ansible.builtin.command:
+    cmd: "{{ item }} version"
+  loop:
+    - oc
+    - openshift-install
+  changed_when: false
+
+- name: Verify oc-mirror
+  ansible.builtin.command:
+    cmd: oc-mirror version --v2
+  changed_when: false

@@ -1,0 +1,42 @@
+apiVersion: mirror.openshift.io/v2alpha1
+kind: ImageSetConfiguration
+mirror:
+  platform:
+    channels:
+      - name: {{ ocp_release_channel }}
+        minVersion: {{ ocp_release_version }}
+        maxVersion: {{ ocp_release_version }}
+    architectures:
+      - amd64
+{% if imageset_operators | length > 0 %}
+  operators:
+{% for op in imageset_operators %}
+    - catalog: {{ op.catalog }}
+{% if op.packages is defined and op.packages | length > 0 %}
+      packages:
+{% for pkg in op.packages %}
+        - name: {{ pkg.name }}
+{% if pkg.channels is defined %}
+          channels:
+{% for ch in pkg.channels %}
+            - name: {{ ch.name }}
+{% if ch.minVersion is defined %}
+              minVersion: '{{ ch.minVersion }}'
+{% endif %}
+{% if ch.maxVersion is defined %}
+              maxVersion: '{{ ch.maxVersion }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% elif op.full | default(false) %}
+      full: true
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if imageset_additional_images | length > 0 %}
+  additionalImages:
+{% for img in imageset_additional_images %}
+    - name: {{ img.name }}
+{% endfor %}
+{% endif %}

@@ -1,0 +1,73 @@
+---
+- name: Check if Quay mirror registry is already installed
+  ansible.builtin.command:
+    cmd: podman ps --filter name=quay-app --format "{{ '{{' }}.Names{{ '}}' }}"
+  register: quay_running
+  changed_when: false
+  failed_when: false
+
+- name: Install Quay mirror registry
+  when: quay_running.stdout | default('') | trim == ''
+  block:
+    - name: Create mirror-registry staging directory
+      ansible.builtin.file:
+        path: /opt/mirror-registry
+        state: directory
+        mode: "0755"
+
+    - name: Download mirror-registry tarball
+      ansible.builtin.get_url:
+        url: "{{ mirror_registry_tarball_url }}"
+        dest: /tmp/mirror-registry.tar.gz
+        mode: "0644"
+
+    - name: Extract mirror-registry tarball
+      ansible.builtin.unarchive:
+        src: /tmp/mirror-registry.tar.gz
+        dest: /opt/mirror-registry
+        remote_src: true
+
+    - name: Run mirror-registry install
+      ansible.builtin.command:
+        cmd: >-
+          /opt/mirror-registry/mirror-registry install
+          --quayHostname {{ quay_hostname }}
+          --quayRoot {{ quay_root }}
+          --targetPort {{ quay_port }}
+          --initPassword {{ quay_init_password }}
+          --verbose
+      register: mirror_registry_install
+      timeout: 600
+
+    - name: Display mirror-registry install result
+      ansible.builtin.debug:
+        msg: "{{ mirror_registry_install.stdout_lines[-5:] }}"
+
+- name: Open Quay port in firewall
+  ansible.posix.firewalld:
+    port: "{{ quay_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Trust the Quay CA certificate
+  ansible.builtin.copy:
+    src: "{{ quay_root }}/quay-rootCA/rootCA.pem"
+    dest: /etc/pki/ca-trust/source/anchors/quay-mirror-registry.crt
+    mode: "0644"
+    remote_src: true
+  notify: update ca trust
+
+- name: Flush handlers to apply CA trust now
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for Quay to be responding
+  ansible.builtin.uri:
+    url: "https://{{ _registry_url }}/v2/"
+    method: GET
+    validate_certs: true
+    status_code: [200, 401]
+  register: quay_health
+  retries: 12
+  delay: 10
+  until: quay_health.status in [200, 401]
