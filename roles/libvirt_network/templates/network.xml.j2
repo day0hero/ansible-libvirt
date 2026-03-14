@@ -11,7 +11,7 @@
   <forward mode='route'/>
 {% endif %}
 {# isolated mode: no <forward> element at all #}
-  <ip address='{{ cluster_network.gateway }}' netmask='{{ cluster_network.cidr | ansible.utils.ipaddr("netmask") }}'>
+  <ip address='{{ cluster_network.gateway }}' netmask='{{ cluster_network.netmask | default("255.255.255.0") }}'>
     <dhcp>
       <range start='{{ cluster_network.dhcp_start }}' end='{{ cluster_network.dhcp_end }}'/>
 {% for node in cluster_nodes %}
