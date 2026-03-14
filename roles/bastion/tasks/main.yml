@@ -6,7 +6,13 @@
       - podman
       - httpd-tools
       - openssl
+      - firewalld
+      - python3-firewall
+      - jq
+      - tar
     state: present
+
+# --- HAProxy ---
 
 - name: Configure HAProxy
   ansible.builtin.template:
@@ -28,6 +34,8 @@
     state: started
     enabled: true
 
+# --- Firewall ---
+
 - name: Open firewall ports for OpenShift
   ansible.posix.firewalld:
     port: "{{ item }}"
@@ -39,44 +47,106 @@
     - "22623/tcp"
     - "80/tcp"
     - "443/tcp"
-    - "{{ bastion.mirror_registry_port | default(5000) }}/tcp"
+    - "{{ bastion.mirror_registry_port | default(8443) }}/tcp"
     - "{{ bastion.haproxy_stats_port | default(9000) }}/tcp"
 
-- name: Create mirror registry directories
+# --- OCP CLI tools ---
+
+- name: Download OpenShift client tarball
+  ansible.builtin.get_url:
+    url: "{{ openshift_client_url }}"
+    dest: /tmp/openshift-client-linux.tar.gz
+    mode: "0644"
+
+- name: Extract oc and kubectl
+  ansible.builtin.command:
+    cmd: tar -xzf /tmp/openshift-client-linux.tar.gz -C /usr/local/bin oc kubectl
+    creates: /usr/local/bin/oc
+
+- name: Download openshift-install tarball
+  ansible.builtin.get_url:
+    url: "{{ openshift_install_url }}"
+    dest: /tmp/openshift-install-linux.tar.gz
+    mode: "0644"
+
+- name: Extract openshift-install
+  ansible.builtin.command:
+    cmd: tar -xzf /tmp/openshift-install-linux.tar.gz -C /usr/local/bin openshift-install
+    creates: /usr/local/bin/openshift-install
+
+- name: Set executable permissions on CLI tools
   ansible.builtin.file:
     path: "{{ item }}"
-    state: directory
     mode: "0755"
   loop:
-    - "{{ mirror_registry_data_dir }}"
-    - "{{ mirror_registry_certs_dir }}"
-    - "{{ mirror_registry_auth_dir }}"
+    - /usr/local/bin/oc
+    - /usr/local/bin/kubectl
+    - /usr/local/bin/openshift-install
 
-- name: Generate self-signed TLS cert for mirror registry
+# --- Quay mirror registry ---
+
+- name: Check if Quay mirror registry is already installed
   ansible.builtin.command:
-    cmd: >-
-      openssl req -newkey rsa:4096 -nodes -sha256
-      -keyout {{ mirror_registry_certs_dir }}/domain.key
-      -x509 -days 365
-      -out {{ mirror_registry_certs_dir }}/domain.crt
-      -subj "/CN={{ bastion.name }}.{{ cluster_name }}.{{ cluster_domain }}"
-      -addext "subjectAltName=DNS:{{ bastion.name }}.{{ cluster_name }}.{{ cluster_domain }}"
-    creates: "{{ mirror_registry_certs_dir }}/domain.crt"
+    cmd: podman ps --filter name=quay-app --format "{{ '{{' }}.Names{{ '}}' }}"
+  register: _quay_running
+  changed_when: false
+  failed_when: false
 
-- name: Trust the mirror registry CA on the bastion
+- name: Install Quay mirror registry
+  when: _quay_running.stdout | default('') | trim == ''
+  block:
+    - name: Create mirror-registry staging directory
+      ansible.builtin.file:
+        path: /opt/mirror-registry
+        state: directory
+        mode: "0755"
+
+    - name: Download mirror-registry tarball
+      ansible.builtin.get_url:
+        url: "{{ mirror_registry_url }}"
+        dest: /tmp/mirror-registry.tar.gz
+        mode: "0644"
+
+    - name: Extract mirror-registry tarball
+      ansible.builtin.unarchive:
+        src: /tmp/mirror-registry.tar.gz
+        dest: /opt/mirror-registry
+        remote_src: true
+
+    - name: Run mirror-registry install
+      ansible.builtin.command:
+        cmd: >-
+          /opt/mirror-registry/mirror-registry install
+          --quayHostname {{ quay_hostname }}
+          --quayRoot {{ quay_root }}
+          --targetPort {{ bastion.mirror_registry_port | default(8443) }}
+          --initPassword {{ quay_init_password }}
+          --verbose
+      timeout: 600
+
+- name: Trust the Quay CA certificate
   ansible.builtin.copy:
-    src: "{{ mirror_registry_certs_dir }}/domain.crt"
-    dest: "/etc/pki/ca-trust/source/anchors/mirror-registry.crt"
+    src: "{{ quay_root }}/quay-rootCA/rootCA.pem"
+    dest: /etc/pki/ca-trust/source/anchors/quay-mirror-registry.crt
     mode: "0644"
     remote_src: true
   notify: update ca trust
 
-- name: Deploy mirror registry quadlet
-  ansible.builtin.template:
-    src: mirror-registry.yml.j2
-    dest: /etc/containers/systemd/mirror-registry.container
-    mode: "0644"
-  notify: reload systemd and start mirror registry
+- name: Flush handlers to apply CA trust now
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for Quay to be responding
+  ansible.builtin.uri:
+    url: "https://{{ quay_hostname }}:{{ bastion.mirror_registry_port | default(8443) }}/v2/"
+    method: GET
+    validate_certs: true
+    status_code: [200, 401]
+  register: _quay_health
+  retries: 12
+  delay: 10
+  until: _quay_health.status in [200, 401]
+
+# --- DNS ---
 
 - name: Configure DNS forwarding (bastion as DNS relay to cluster network)
   ansible.builtin.copy:

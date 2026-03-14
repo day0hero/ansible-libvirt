@@ -9,10 +9,15 @@ cluster_dns:
 cluster_nodes: []
 
 bastion:
-  mirror_registry_port: 5000
+  mirror_registry_port: 8443
   haproxy_stats_port: 9000
 
-mirror_registry_image: "docker.io/library/registry:2"
-mirror_registry_data_dir: /opt/registry/data
-mirror_registry_certs_dir: /opt/registry/certs
-mirror_registry_auth_dir: /opt/registry/auth
+# Quay mirror registry
+mirror_registry_url: "https://developers.redhat.com/content-gateway/file/pub/openshift-v4/clients/mirror-registry/1.3.11/mirror-registry.tar.gz"
+quay_root: /opt/quay
+quay_init_password: "openshift"
+quay_hostname: "{{ bastion.name }}.{{ cluster_name }}.{{ cluster_domain }}"
+
+# OCP CLI tools
+openshift_client_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/stable-4.21/openshift-client-linux.tar.gz"
+openshift_install_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/stable-4.21/openshift-install-linux.tar.gz"

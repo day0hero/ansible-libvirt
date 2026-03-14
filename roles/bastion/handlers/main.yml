@@ -8,10 +8,6 @@
   ansible.builtin.command:
     cmd: update-ca-trust
 
-- name: reload systemd and start mirror registry
-  ansible.builtin.systemd:
-    daemon_reload: true
-
 - name: restart networkmanager
   ansible.builtin.systemd:
     name: NetworkManager
