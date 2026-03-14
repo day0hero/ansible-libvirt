@@ -6,7 +6,7 @@
 # This playbook SSHs into the bastion VM and configures it as the
 # disconnected cluster's load balancer, DNS relay, and mirror registry.
 - name: Configure bastion for disconnected OpenShift
-  hosts: bastion
+  hosts: bastions
   gather_facts: true
   vars_files:
     - ../inventory/group_vars/clusters/disconnected.yml
