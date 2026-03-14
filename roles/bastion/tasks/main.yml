@@ -85,22 +85,3 @@
     dest: /etc/NetworkManager/dnsmasq.d/{{ cluster_name }}.conf
     mode: "0644"
   notify: restart networkmanager
-
-handlers:
-  - name: restart haproxy
-    ansible.builtin.systemd:
-      name: haproxy
-      state: restarted
-
-  - name: update ca trust
-    ansible.builtin.command:
-      cmd: update-ca-trust
-
-  - name: reload systemd and start mirror registry
-    ansible.builtin.systemd:
-      daemon_reload: true
-
-  - name: restart networkmanager
-    ansible.builtin.systemd:
-      name: NetworkManager
-      state: restarted
