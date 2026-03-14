@@ -30,9 +30,12 @@
 
 - name: Enable and start HAProxy
   ansible.builtin.systemd:
-    name: haproxy
+    name: "{{ item }}"
     state: started
     enabled: true
+  loop:
+    - haproxy
+    - firewalld
 
 # --- Firewall ---
 
