@@ -1,0 +1,20 @@
+---
+cluster_network:
+  name: "ocp"
+  mode: nat
+  bridge: "virbr-ocp"
+  cidr: "192.168.126.0/24"
+  gateway: "192.168.126.1"
+  dhcp_start: "192.168.126.10"
+  dhcp_end: "192.168.126.99"
+
+cluster_name: ocp
+cluster_domain: example.com
+
+cluster_dns:
+  api_vip: "192.168.126.10"
+  ingress_vip: "192.168.126.11"
+
+cluster_nodes: []
+
+network_state: present

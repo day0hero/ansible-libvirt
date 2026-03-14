@@ -1,0 +1,56 @@
+---
+- name: Destroy network (teardown)
+  when: network_state == 'absent'
+  block:
+    - name: Stop the libvirt network
+      ansible.builtin.command:
+        cmd: "virsh net-destroy {{ cluster_network.name }}"
+      register: net_destroy
+      failed_when: net_destroy.rc != 0 and 'is not active' not in net_destroy.stderr
+      changed_when: net_destroy.rc == 0
+
+    - name: Undefine the libvirt network
+      ansible.builtin.command:
+        cmd: "virsh net-undefine {{ cluster_network.name }}"
+      register: net_undefine
+      failed_when: net_undefine.rc != 0 and 'not found' not in net_undefine.stderr
+      changed_when: net_undefine.rc == 0
+
+- name: Create network
+  when: network_state == 'present'
+  block:
+    - name: Check if network already exists
+      ansible.builtin.command:
+        cmd: "virsh net-info {{ cluster_network.name }}"
+      register: net_info
+      failed_when: false
+      changed_when: false
+
+    - name: Template network XML
+      ansible.builtin.template:
+        src: network.xml.j2
+        dest: "/tmp/{{ cluster_network.name }}.xml"
+        mode: "0644"
+      when: net_info.rc != 0
+
+    - name: Define the libvirt network
+      ansible.builtin.command:
+        cmd: "virsh net-define /tmp/{{ cluster_network.name }}.xml"
+      when: net_info.rc != 0
+
+    - name: Start the libvirt network
+      ansible.builtin.command:
+        cmd: "virsh net-start {{ cluster_network.name }}"
+      register: net_start
+      failed_when: net_start.rc != 0 and 'is already active' not in net_start.stderr
+      changed_when: net_start.rc == 0
+
+    - name: Set network to autostart
+      ansible.builtin.command:
+        cmd: "virsh net-autostart {{ cluster_network.name }}"
+      changed_when: true
+
+    - name: Clean up temp XML
+      ansible.builtin.file:
+        path: "/tmp/{{ cluster_network.name }}.xml"
+        state: absent

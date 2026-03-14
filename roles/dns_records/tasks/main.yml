@@ -1,0 +1,37 @@
+---
+- name: "{{ dns_action }} DNS host entries on {{ cluster_network.name }}"
+  ansible.builtin.command:
+    cmd: >-
+      virsh net-update {{ cluster_network.name }}
+      {{ dns_action }}-last dns-host
+      '<host ip="{{ entry.ip }}">{% for h in entry.hostnames %}<hostname>{{ h }}</hostname>{% endfor %}</host>'
+      --live --config
+  loop: "{{ dns_entries }}"
+  loop_control:
+    loop_var: entry
+    label: "{{ entry.ip }}"
+  register: dns_update
+  failed_when:
+    - dns_update.rc != 0
+    - "'already exists' not in dns_update.stderr"
+    - "'does not exist' not in dns_update.stderr"
+  changed_when: dns_update.rc == 0
+
+- name: "{{ dns_action }} DHCP host entries on {{ cluster_network.name }}"
+  ansible.builtin.command:
+    cmd: >-
+      virsh net-update {{ cluster_network.name }}
+      {{ dns_action }}-last ip-dhcp-host
+      '<host mac="{{ entry.mac }}" name="{{ entry.hostnames[0] }}" ip="{{ entry.ip }}"/>'
+      --live --config
+  loop: "{{ dns_entries }}"
+  loop_control:
+    loop_var: entry
+    label: "{{ entry.ip }}"
+  when: entry.mac is defined
+  register: dhcp_update
+  failed_when:
+    - dhcp_update.rc != 0
+    - "'already exists' not in dhcp_update.stderr"
+    - "'does not exist' not in dhcp_update.stderr"
+  changed_when: dhcp_update.rc == 0

@@ -1,0 +1,52 @@
+---
+# Usage:
+#   ansible-playbook playbooks/infra-create.yml -e @inventory/group_vars/clusters/connected.yml
+#   ansible-playbook playbooks/infra-create.yml -e @inventory/group_vars/clusters/disconnected.yml
+- name: Create cluster infrastructure
+  hosts: hypervisors
+  gather_facts: false
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - cluster_name is defined
+          - cluster_domain is defined
+          - cluster_network is defined
+          - cluster_dns is defined
+          - cluster_nodes | length > 0
+        fail_msg: "Load a cluster var file with -e @inventory/group_vars/clusters/<name>.yml"
+
+  roles:
+    - role: libvirt_network
+      vars:
+        network_state: present
+
+    - role: libvirt_vm
+      vars:
+        vm_state: present
+
+  post_tasks:
+    - name: Provision bastion VM (disconnected only)
+      when: bastion is defined
+      ansible.builtin.include_role:
+        name: libvirt_vm
+        tasks_from: create_vm.yml
+      vars:
+        node: "{{ bastion }}"
+
+    - name: Display cluster summary
+      ansible.builtin.debug:
+        msg: |
+          Cluster: {{ cluster_name }}.{{ cluster_domain }}
+          Network: {{ cluster_network.name }} ({{ cluster_network.mode }})
+          API:     {{ cluster_dns.api_vip }}
+          Ingress: {{ cluster_dns.ingress_vip }}
+          Apps:    *.apps.{{ cluster_name }}.{{ cluster_domain }} -> {{ cluster_dns.ingress_vip }}
+          Nodes:
+          {% for node in cluster_nodes %}
+            - {{ node.name }} ({{ node.role }}): {{ node.ip }}
+          {% endfor %}
+          {% if bastion is defined %}
+          Bastion: {{ bastion.name }} @ {{ bastion.ip }}
+          {% endif %}

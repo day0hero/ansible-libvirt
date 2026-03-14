@@ -1,0 +1,18 @@
+# Podman quadlet / systemd unit for mirror registry
+# Deployed to /etc/containers/systemd/mirror-registry.container on bastion
+[Unit]
+Description=Mirror Registry for disconnected OpenShift
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image={{ mirror_registry_image }}
+PublishPort={{ bastion.mirror_registry_port | default(5000) }}:5000
+Volume={{ mirror_registry_data_dir }}:/var/lib/registry:Z
+Volume={{ mirror_registry_certs_dir }}:/certs:Z
+Volume={{ mirror_registry_auth_dir }}:/auth:Z
+Environment=REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.crt
+Environment=REGISTRY_HTTP_TLS_KEY=/certs/domain.key
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,106 @@
+---
+- name: Install bastion packages
+  ansible.builtin.dnf:
+    name:
+      - haproxy
+      - podman
+      - httpd-tools
+      - openssl
+    state: present
+
+- name: Configure HAProxy
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    mode: "0644"
+    backup: true
+  notify: restart haproxy
+
+- name: Allow HAProxy to bind to any port (SELinux)
+  ansible.posix.seboolean:
+    name: haproxy_connect_any
+    state: true
+    persistent: true
+
+- name: Enable and start HAProxy
+  ansible.builtin.systemd:
+    name: haproxy
+    state: started
+    enabled: true
+
+- name: Open firewall ports for OpenShift
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - "6443/tcp"
+    - "22623/tcp"
+    - "80/tcp"
+    - "443/tcp"
+    - "{{ bastion.mirror_registry_port | default(5000) }}/tcp"
+    - "{{ bastion.haproxy_stats_port | default(9000) }}/tcp"
+
+- name: Create mirror registry directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ mirror_registry_data_dir }}"
+    - "{{ mirror_registry_certs_dir }}"
+    - "{{ mirror_registry_auth_dir }}"
+
+- name: Generate self-signed TLS cert for mirror registry
+  ansible.builtin.command:
+    cmd: >-
+      openssl req -newkey rsa:4096 -nodes -sha256
+      -keyout {{ mirror_registry_certs_dir }}/domain.key
+      -x509 -days 365
+      -out {{ mirror_registry_certs_dir }}/domain.crt
+      -subj "/CN={{ bastion.name }}.{{ cluster_name }}.{{ cluster_domain }}"
+      -addext "subjectAltName=DNS:{{ bastion.name }}.{{ cluster_name }}.{{ cluster_domain }}"
+    creates: "{{ mirror_registry_certs_dir }}/domain.crt"
+
+- name: Trust the mirror registry CA on the bastion
+  ansible.builtin.copy:
+    src: "{{ mirror_registry_certs_dir }}/domain.crt"
+    dest: "/etc/pki/ca-trust/source/anchors/mirror-registry.crt"
+    mode: "0644"
+    remote_src: true
+  notify: update ca trust
+
+- name: Deploy mirror registry quadlet
+  ansible.builtin.template:
+    src: mirror-registry.yml.j2
+    dest: /etc/containers/systemd/mirror-registry.container
+    mode: "0644"
+  notify: reload systemd and start mirror registry
+
+- name: Configure DNS forwarding (bastion as DNS relay to cluster network)
+  ansible.builtin.copy:
+    content: |
+      server=/{{ cluster_name }}.{{ cluster_domain }}/{{ cluster_dns.api_vip }}
+    dest: /etc/NetworkManager/dnsmasq.d/{{ cluster_name }}.conf
+    mode: "0644"
+  notify: restart networkmanager
+
+handlers:
+  - name: restart haproxy
+    ansible.builtin.systemd:
+      name: haproxy
+      state: restarted
+
+  - name: update ca trust
+    ansible.builtin.command:
+      cmd: update-ca-trust
+
+  - name: reload systemd and start mirror registry
+    ansible.builtin.systemd:
+      daemon_reload: true
+
+  - name: restart networkmanager
+    ansible.builtin.systemd:
+      name: NetworkManager
+      state: restarted

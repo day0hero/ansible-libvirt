@@ -1,0 +1,71 @@
+---
+cluster_name: ocp-disc
+cluster_domain: example.com
+
+cluster_network:
+  name: ocp-disconnected
+  mode: isolated
+  bridge: virbr-disc
+  cidr: "192.168.127.0/24"
+  gateway: "192.168.127.1"
+  dhcp_start: "192.168.127.10"
+  dhcp_end: "192.168.127.99"
+
+cluster_dns:
+  api_vip: "192.168.127.5"
+  ingress_vip: "192.168.127.6"
+
+bastion:
+  name: bastion
+  vcpus: 4
+  memory_mb: 8192
+  disk_gb: 200
+  mac: "52:54:00:02:01:05"
+  ip: "192.168.127.5"
+  image_path: "/var/lib/libvirt/images/rhel-9-base.qcow2"
+  os_variant: "rhel9-unknown"
+  extra_networks:
+    - "bridge=br0,model=virtio"
+  mirror_registry_port: 5000
+  haproxy_stats_port: 9000
+
+cluster_nodes:
+  - name: bootstrap
+    role: bootstrap
+    vcpus: 4
+    memory_mb: 16384
+    disk_gb: 120
+    mac: "52:54:00:02:01:10"
+    ip: "192.168.127.10"
+    image_path: "/var/lib/libvirt/images/rhcos-disc.qcow2"
+    os_variant: "rhel9-unknown"
+
+  - name: master-0
+    role: master
+    vcpus: 4
+    memory_mb: 16384
+    disk_gb: 120
+    mac: "52:54:00:02:01:20"
+    ip: "192.168.127.20"
+    image_path: "/var/lib/libvirt/images/rhcos-disc.qcow2"
+    os_variant: "rhel9-unknown"
+
+  - name: master-1
+    role: master
+    vcpus: 4
+    memory_mb: 16384
+    disk_gb: 120
+    mac: "52:54:00:02:01:21"
+    ip: "192.168.127.21"
+    image_path: "/var/lib/libvirt/images/rhcos-disc.qcow2"
+    os_variant: "rhel9-unknown"
+
+  - name: master-2
+    role: master
+    vcpus: 4
+    memory_mb: 16384
+    disk_gb: 120
+    mac: "52:54:00:02:01:22"
+    ip: "192.168.127.22"
+    image_path: "/var/lib/libvirt/images/rhcos-disc.qcow2"
+    os_variant: "rhel9-unknown"

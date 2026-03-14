@@ -1,0 +1,18 @@
+---
+libvirt_pool_path: /var/lib/libvirt/images
+
+vm_defaults:
+  vcpus: 4
+  memory_mb: 8192
+  disk_gb: 50
+  os_variant: "fedora-unknown"
+
+vm_state: present
+
+cluster_network:
+  name: ocp
+  bridge: virbr-ocp
+
+cluster_name: ocp
+cluster_domain: example.com
+cluster_nodes: []

@@ -1,0 +1,38 @@
+---
+# Usage:
+#   1. First create the infra: ansible-playbook playbooks/infra-create.yml -e @inventory/group_vars/clusters/disconnected.yml
+#   2. Wait for bastion to boot, then: ansible-playbook playbooks/bastion-setup.yml -e @inventory/group_vars/clusters/disconnected.yml
+#
+# This playbook SSHs into the bastion VM and configures it as the
+# disconnected cluster's load balancer, DNS relay, and mirror registry.
+- name: Configure bastion for disconnected OpenShift
+  hosts: bastion
+  gather_facts: true
+  vars_files:
+    - ../inventory/group_vars/clusters/disconnected.yml
+
+  pre_tasks:
+    - name: Validate bastion is defined
+      ansible.builtin.assert:
+        that:
+          - bastion is defined
+          - cluster_name is defined
+          - cluster_nodes | length > 0
+        fail_msg: "This playbook requires the disconnected cluster var file."
+
+    - name: Wait for bastion SSH
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+  roles:
+    - bastion
+
+  post_tasks:
+    - name: Bastion setup complete
+      ansible.builtin.debug:
+        msg: |
+          Bastion {{ bastion.name }} is ready:
+            HAProxy stats:    http://{{ bastion.ip }}:{{ bastion.haproxy_stats_port | default(9000) }}
+            Mirror registry:  https://{{ bastion.name }}.{{ cluster_name }}.{{ cluster_domain }}:{{ bastion.mirror_registry_port | default(5000) }}
+            API LB:           {{ bastion.ip }}:6443
+            Machine Config:   {{ bastion.ip }}:22623

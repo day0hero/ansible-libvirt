@@ -1,0 +1,18 @@
+---
+cluster_name: ocp-disc
+cluster_domain: example.com
+
+cluster_dns:
+  api_vip: "192.168.127.5"
+  ingress_vip: "192.168.127.6"
+
+cluster_nodes: []
+
+bastion:
+  mirror_registry_port: 5000
+  haproxy_stats_port: 9000
+
+mirror_registry_image: "docker.io/library/registry:2"
+mirror_registry_data_dir: /opt/registry/data
+mirror_registry_certs_dir: /opt/registry/certs
+mirror_registry_auth_dir: /opt/registry/auth

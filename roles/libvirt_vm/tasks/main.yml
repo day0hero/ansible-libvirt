@@ -1,0 +1,32 @@
+---
+- name: Destroy VMs (teardown)
+  when: vm_state == 'absent'
+  block:
+    - name: "{{ node.name }} -- destroy VM"
+      ansible.builtin.command:
+        cmd: "virsh destroy {{ node.name }}"
+      loop: "{{ cluster_nodes }}"
+      loop_control:
+        loop_var: node
+      register: vm_destroy
+      failed_when: vm_destroy.rc != 0 and 'domain is not running' not in vm_destroy.stderr
+      changed_when: vm_destroy.rc == 0
+
+    - name: "{{ node.name }} -- undefine VM"
+      ansible.builtin.command:
+        cmd: "virsh undefine {{ node.name }} --remove-all-storage --nvram"
+      loop: "{{ cluster_nodes }}"
+      loop_control:
+        loop_var: node
+      register: vm_undefine
+      failed_when: vm_undefine.rc != 0 and 'failed to get domain' not in vm_undefine.stderr
+      changed_when: vm_undefine.rc == 0
+
+- name: Create VMs
+  when: vm_state == 'present'
+  block:
+    - name: Provision each VM
+      ansible.builtin.include_tasks: create_vm.yml
+      loop: "{{ cluster_nodes }}"
+      loop_control:
+        loop_var: node

@@ -1,0 +1,14 @@
+---
+dns_action: add
+# add or delete
+
+cluster_network:
+  name: ocp
+
+cluster_name: ocp
+cluster_domain: example.com
+
+dns_entries: []
+# - ip: 192.168.126.50
+#   hostnames:
+#     - worker-2.ocp.example.com

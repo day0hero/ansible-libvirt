@@ -1,0 +1,69 @@
+global
+    log         127.0.0.1 local2
+    maxconn     4000
+    daemon
+
+defaults
+    mode        tcp
+    log         global
+    timeout connect 10s
+    timeout client  30s
+    timeout server  30s
+    retries     3
+
+listen stats
+    bind *:{{ bastion.haproxy_stats_port | default(9000) }}
+    mode http
+    stats enable
+    stats uri /
+    stats refresh 10s
+
+frontend api-server
+    bind *:6443
+    default_backend api-server
+
+backend api-server
+    balance source
+{% for node in cluster_nodes | selectattr('role', 'in', ['master', 'bootstrap']) %}
+    server {{ node.name }} {{ node.ip }}:6443 check
+{% endfor %}
+
+frontend machine-config-server
+    bind *:22623
+    default_backend machine-config-server
+
+backend machine-config-server
+    balance source
+{% for node in cluster_nodes | selectattr('role', 'in', ['master', 'bootstrap']) %}
+    server {{ node.name }} {{ node.ip }}:22623 check
+{% endfor %}
+
+frontend ingress-http
+    bind *:80
+    default_backend ingress-http
+
+backend ingress-http
+    balance source
+{% for node in cluster_nodes | selectattr('role', 'equalto', 'worker') %}
+    server {{ node.name }} {{ node.ip }}:80 check
+{% endfor %}
+{% if cluster_nodes | selectattr('role', 'equalto', 'worker') | list | length == 0 %}
+{% for node in cluster_nodes | selectattr('role', 'equalto', 'master') %}
+    server {{ node.name }} {{ node.ip }}:80 check
+{% endfor %}
+{% endif %}
+
+frontend ingress-https
+    bind *:443
+    default_backend ingress-https
+
+backend ingress-https
+    balance source
+{% for node in cluster_nodes | selectattr('role', 'equalto', 'worker') %}
+    server {{ node.name }} {{ node.ip }}:443 check
+{% endfor %}
+{% if cluster_nodes | selectattr('role', 'equalto', 'worker') | list | length == 0 %}
+{% for node in cluster_nodes | selectattr('role', 'equalto', 'master') %}
+    server {{ node.name }} {{ node.ip }}:443 check
+{% endfor %}
+{% endif %}

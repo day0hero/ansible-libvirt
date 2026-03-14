@@ -1,0 +1,39 @@
+<network xmlns:dnsmasq='http://libvirt.org/schemas/network/dnsmasq/1.0'>
+  <name>{{ cluster_network.name }}</name>
+  <bridge name='{{ cluster_network.bridge }}'/>
+{% if cluster_network.mode == 'nat' %}
+  <forward mode='nat'>
+    <nat>
+      <port start='1024' end='65535'/>
+    </nat>
+  </forward>
+{% elif cluster_network.mode == 'route' %}
+  <forward mode='route'/>
+{% endif %}
+{# isolated mode: no <forward> element at all #}
+  <ip address='{{ cluster_network.gateway }}' netmask='{{ cluster_network.cidr | ansible.utils.ipaddr("netmask") }}'>
+    <dhcp>
+      <range start='{{ cluster_network.dhcp_start }}' end='{{ cluster_network.dhcp_end }}'/>
+{% for node in cluster_nodes %}
+      <host mac='{{ node.mac }}' name='{{ node.name }}.{{ cluster_name }}.{{ cluster_domain }}' ip='{{ node.ip }}'/>
+{% endfor %}
+    </dhcp>
+  </ip>
+  <dns>
+    <host ip='{{ cluster_dns.api_vip }}'>
+      <hostname>api.{{ cluster_name }}.{{ cluster_domain }}</hostname>
+    </host>
+    <host ip='{{ cluster_dns.api_vip }}'>
+      <hostname>api-int.{{ cluster_name }}.{{ cluster_domain }}</hostname>
+    </host>
+{% for node in cluster_nodes %}
+    <host ip='{{ node.ip }}'>
+      <hostname>{{ node.name }}.{{ cluster_name }}.{{ cluster_domain }}</hostname>
+    </host>
+{% endfor %}
+  </dns>
+  <dnsmasq:options>
+    <dnsmasq:option value='address=/.apps.{{ cluster_name }}.{{ cluster_domain }}/{{ cluster_dns.ingress_vip }}'/>
+    <dnsmasq:option value='strict-order'/>
+  </dnsmasq:options>
+</network>

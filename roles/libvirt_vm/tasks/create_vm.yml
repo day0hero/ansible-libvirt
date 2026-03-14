@@ -1,0 +1,51 @@
+---
+- name: "{{ node.name }} -- check if VM already exists"
+  ansible.builtin.command:
+    cmd: "virsh dominfo {{ node.name }}"
+  register: vm_info
+  failed_when: false
+  changed_when: false
+
+- name: "{{ node.name }} -- provision VM"
+  when: vm_info.rc != 0
+  block:
+    - name: "{{ node.name }} -- set base image path"
+      ansible.builtin.set_fact:
+        base_image_dest: "{{ libvirt_pool_path }}/{{ node.image_url | default(node.image_path) | basename }}"
+
+    - name: "{{ node.name }} -- fetch base image"
+      ansible.builtin.include_tasks: fetch_image.yml
+
+    - name: "{{ node.name }} -- create COW overlay disk"
+      ansible.builtin.command:
+        cmd: >-
+          qemu-img create -f qcow2
+          -b {{ base_image_dest }}
+          -F qcow2
+          {{ libvirt_pool_path }}/{{ node.name }}.qcow2
+          {{ node.disk_gb | default(vm_defaults.disk_gb) }}G
+        creates: "{{ libvirt_pool_path }}/{{ node.name }}.qcow2"
+
+    - name: "{{ node.name }} -- build virt-install command"
+      ansible.builtin.set_fact:
+        virt_install_cmd: >-
+          virt-install
+          --name {{ node.name }}
+          --vcpus {{ node.vcpus | default(vm_defaults.vcpus) }}
+          --memory {{ node.memory_mb | default(vm_defaults.memory_mb) }}
+          --disk path={{ libvirt_pool_path }}/{{ node.name }}.qcow2,bus=virtio
+          --network network={{ cluster_network.name }},mac={{ node.mac }}
+          {% if node.extra_networks is defined %}
+          {% for net in node.extra_networks %}
+          --network {{ net }}
+          {% endfor %}
+          {% endif %}
+          --os-variant {{ node.os_variant | default(vm_defaults.os_variant) }}
+          --noautoconsole
+          --import
+          --boot uefi
+
+    - name: "{{ node.name }} -- create VM with virt-install"
+      ansible.builtin.command:
+        cmd: "{{ virt_install_cmd }}"
+      changed_when: true

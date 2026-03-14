@@ -1,0 +1,25 @@
+---
+- name: "{{ node.name }} -- check if base image already exists"
+  ansible.builtin.stat:
+    path: "{{ base_image_dest }}"
+  register: base_image_stat
+
+- name: "{{ node.name }} -- download remote qcow2"
+  ansible.builtin.get_url:
+    url: "{{ node.image_url }}"
+    dest: "{{ base_image_dest }}"
+    mode: "0644"
+  when:
+    - node.image_url is defined
+    - not base_image_stat.stat.exists
+
+- name: "{{ node.name }} -- copy local qcow2"
+  ansible.builtin.copy:
+    src: "{{ node.image_path }}"
+    dest: "{{ base_image_dest }}"
+    mode: "0644"
+    remote_src: true
+  when:
+    - node.image_path is defined
+    - node.image_url is not defined
+    - not base_image_stat.stat.exists

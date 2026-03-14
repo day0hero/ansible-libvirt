@@ -1,0 +1,46 @@
+---
+# Usage:
+#   ansible-playbook playbooks/infra-destroy.yml -e @inventory/group_vars/clusters/connected.yml
+#   ansible-playbook playbooks/infra-destroy.yml -e @inventory/group_vars/clusters/disconnected.yml
+- name: Destroy cluster infrastructure
+  hosts: hypervisors
+  gather_facts: false
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - cluster_name is defined
+          - cluster_network is defined
+          - cluster_nodes is defined
+        fail_msg: "Load a cluster var file with -e @inventory/group_vars/clusters/<name>.yml"
+
+    - name: Destroy bastion VM (disconnected only)
+      when: bastion is defined
+      ansible.builtin.command:
+        cmd: "virsh destroy {{ bastion.name }}"
+      register: bastion_destroy
+      failed_when: bastion_destroy.rc != 0 and 'domain is not running' not in bastion_destroy.stderr
+      changed_when: bastion_destroy.rc == 0
+
+    - name: Undefine bastion VM (disconnected only)
+      when: bastion is defined
+      ansible.builtin.command:
+        cmd: "virsh undefine {{ bastion.name }} --remove-all-storage --nvram"
+      register: bastion_undefine
+      failed_when: bastion_undefine.rc != 0 and 'failed to get domain' not in bastion_undefine.stderr
+      changed_when: bastion_undefine.rc == 0
+
+  roles:
+    - role: libvirt_vm
+      vars:
+        vm_state: absent
+
+    - role: libvirt_network
+      vars:
+        network_state: absent
+
+  post_tasks:
+    - name: Cluster destroyed
+      ansible.builtin.debug:
+        msg: "Cluster {{ cluster_name }}.{{ cluster_domain }} infrastructure has been removed."

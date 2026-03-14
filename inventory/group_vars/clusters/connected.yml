@@ -1,0 +1,77 @@
+---
+cluster_name: ocp
+cluster_domain: example.com
+
+cluster_network:
+  name: ocp-connected
+  mode: nat
+  bridge: virbr-ocp
+  cidr: "192.168.126.0/24"
+  gateway: "192.168.126.1"
+  dhcp_start: "192.168.126.10"
+  dhcp_end: "192.168.126.99"
+
+cluster_dns:
+  api_vip: "192.168.126.5"
+  ingress_vip: "192.168.126.6"
+
+cluster_nodes:
+  - name: bootstrap
+    role: bootstrap
+    vcpus: 4
+    memory_mb: 16384
+    disk_gb: 120
+    mac: "52:54:00:01:01:10"
+    ip: "192.168.126.10"
+    image_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/dependencies/rhcos/latest/rhcos-qemu.x86_64.qcow2.gz"
+    os_variant: "rhel9-unknown"
+
+  - name: master-0
+    role: master
+    vcpus: 4
+    memory_mb: 16384
+    disk_gb: 120
+    mac: "52:54:00:01:01:20"
+    ip: "192.168.126.20"
+    image_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/dependencies/rhcos/latest/rhcos-qemu.x86_64.qcow2.gz"
+    os_variant: "rhel9-unknown"
+
+  - name: master-1
+    role: master
+    vcpus: 4
+    memory_mb: 16384
+    disk_gb: 120
+    mac: "52:54:00:01:01:21"
+    ip: "192.168.126.21"
+    image_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/dependencies/rhcos/latest/rhcos-qemu.x86_64.qcow2.gz"
+    os_variant: "rhel9-unknown"
+
+  - name: master-2
+    role: master
+    vcpus: 4
+    memory_mb: 16384
+    disk_gb: 120
+    mac: "52:54:00:01:01:22"
+    ip: "192.168.126.22"
+    image_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/dependencies/rhcos/latest/rhcos-qemu.x86_64.qcow2.gz"
+    os_variant: "rhel9-unknown"
+
+  - name: worker-0
+    role: worker
+    vcpus: 2
+    memory_mb: 8192
+    disk_gb: 120
+    mac: "52:54:00:01:01:30"
+    ip: "192.168.126.30"
+    image_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/dependencies/rhcos/latest/rhcos-qemu.x86_64.qcow2.gz"
+    os_variant: "rhel9-unknown"
+
+  - name: worker-1
+    role: worker
+    vcpus: 2
+    memory_mb: 8192
+    disk_gb: 120
+    mac: "52:54:00:01:01:31"
+    ip: "192.168.126.31"
+    image_url: "https://mirror.openshift.com/pub/openshift-v4/x86_64/dependencies/rhcos/latest/rhcos-qemu.x86_64.qcow2.gz"
+    os_variant: "rhel9-unknown"
