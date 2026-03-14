@@ -1,5 +1,6 @@
 <network xmlns:dnsmasq='http://libvirt.org/schemas/network/dnsmasq/1.0'>
   <name>{{ cluster_network.name }}</name>
+  <domain name='{{ cluster_name }}.{{ cluster_domain }}' localOnly='yes'/>
   <bridge name='{{ cluster_network.bridge }}'/>
 {% if cluster_network.mode == 'nat' %}
   <forward mode='nat'>
@@ -34,6 +35,8 @@
   </dns>
   <dnsmasq:options>
     <dnsmasq:option value='address=/.apps.{{ cluster_name }}.{{ cluster_domain }}/{{ cluster_dns.ingress_vip }}'/>
+    <dnsmasq:option value='dhcp-option=option:dns-server,{{ cluster_network.gateway }}'/>
+    <dnsmasq:option value='dhcp-option=option:domain-search,{{ cluster_name }}.{{ cluster_domain }}'/>
     <dnsmasq:option value='strict-order'/>
   </dnsmasq:options>
 </network>
