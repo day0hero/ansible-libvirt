@@ -14,7 +14,7 @@
           - cluster_domain is defined
           - cluster_network is defined
           - cluster_dns is defined
-          - cluster_nodes | length > 0
+          - (cluster_nodes | length > 0) or (bastion is defined)
         fail_msg: "Load a cluster var file with -e @inventory/group_vars/clusters/<name>.yml"
 
   roles:
@@ -23,6 +23,7 @@
         network_state: present
 
     - role: libvirt_vm
+      when: cluster_nodes | length > 0
       vars:
         vm_state: present
 

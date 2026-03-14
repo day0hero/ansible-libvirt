@@ -1,0 +1,38 @@
+---
+# Generic VM definitions -- not tied to OpenShift or any cluster.
+#
+# Usage:
+#   ansible-playbook playbooks/vm-create.yml -e @inventory/group_vars/vms/example.yml
+#   ansible-playbook playbooks/vm-destroy.yml -e @inventory/group_vars/vms/example.yml
+#
+# Each VM can specify its own network. Use any of:
+#   network: "network=default"          # libvirt network by name
+#   network: "bridge=br0,model=virtio"  # host bridge directly
+#
+# If 'network' is omitted, falls back to cluster_network.name (for cluster VMs).
+# If 'mac' is omitted, libvirt auto-generates one.
+
+vms:
+  - name: dev-rhel9
+    vcpus: 2
+    memory_mb: 4096
+    disk_gb: 40
+    network: "network=default"
+    image_path: "/var/lib/libvirt/images/rhel-9-base.qcow2"
+    os_variant: "rhel9-unknown"
+
+  - name: dev-fedora
+    vcpus: 2
+    memory_mb: 4096
+    disk_gb: 40
+    network: "bridge=br0,model=virtio"
+    image_url: "https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2"
+    os_variant: "fedora-unknown"
+
+  - name: test-ubuntu
+    vcpus: 2
+    memory_mb: 2048
+    disk_gb: 20
+    network: "network=default"
+    image_url: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+    os_variant: "ubuntu24.04"

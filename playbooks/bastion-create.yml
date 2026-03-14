@@ -1,0 +1,41 @@
+---
+# Usage:
+#   ansible-playbook playbooks/bastion-create.yml -e @inventory/group_vars/clusters/disconnected.yml
+#
+# Creates just the network and bastion VM without any cluster nodes.
+- name: Create bastion VM
+  hosts: hypervisors
+  gather_facts: false
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - bastion is defined
+          - cluster_network is defined
+        fail_msg: "Requires a var file with 'bastion' and 'cluster_network' defined."
+
+  roles:
+    - role: libvirt_network
+      vars:
+        network_state: present
+        cluster_nodes: "{{ [bastion] }}"
+
+  tasks:
+    - name: Provision bastion VM
+      ansible.builtin.include_role:
+        name: libvirt_vm
+        tasks_from: create_vm.yml
+      vars:
+        node: "{{ bastion }}"
+
+  post_tasks:
+    - name: Bastion created
+      ansible.builtin.debug:
+        msg: |
+          Bastion: {{ bastion.name }}
+          IP:      {{ bastion.ip }}
+          Network: {{ cluster_network.name }} ({{ cluster_network.mode }})
+          {% if bastion.extra_networks is defined %}
+          Extra:   {{ bastion.extra_networks | join(', ') }}
+          {% endif %}

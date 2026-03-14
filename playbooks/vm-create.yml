@@ -1,0 +1,34 @@
+---
+# Usage:
+#   ansible-playbook playbooks/vm-create.yml -e @inventory/group_vars/vms/example.yml
+#
+# Spins up generic VMs from a var file. No cluster network or DNS required.
+- name: Create VMs
+  hosts: hypervisors
+  gather_facts: false
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - vms is defined
+          - vms | length > 0
+        fail_msg: "Load a VM var file with -e @inventory/group_vars/vms/<name>.yml"
+
+  tasks:
+    - name: Provision each VM
+      ansible.builtin.include_role:
+        name: libvirt_vm
+        tasks_from: create_vm.yml
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: node
+
+  post_tasks:
+    - name: VM summary
+      ansible.builtin.debug:
+        msg: |
+          Created VMs:
+          {% for vm in vms %}
+            - {{ vm.name }}: {{ vm.vcpus }} vCPU, {{ vm.memory_mb }} MB RAM, {{ vm.disk_gb }} GB disk
+          {% endfor %}

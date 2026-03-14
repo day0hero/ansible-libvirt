@@ -26,6 +26,10 @@
           {{ node.disk_gb | default(vm_defaults.disk_gb) }}G
         creates: "{{ libvirt_pool_path }}/{{ node.name }}.qcow2"
 
+    - name: "{{ node.name }} -- resolve primary network"
+      ansible.builtin.set_fact:
+        _primary_network: "{{ node.network | default('network=' + cluster_network.name) }}"
+
     - name: "{{ node.name }} -- build virt-install command"
       ansible.builtin.set_fact:
         virt_install_cmd: >-
@@ -34,7 +38,8 @@
           --vcpus {{ node.vcpus | default(vm_defaults.vcpus) }}
           --memory {{ node.memory_mb | default(vm_defaults.memory_mb) }}
           --disk path={{ libvirt_pool_path }}/{{ node.name }}.qcow2,bus=virtio
-          --network network={{ cluster_network.name }},mac={{ node.mac }}
+          --network {{ _primary_network }}{% if node.mac is defined %},mac={{ node.mac }}{% endif %}
+
           {% if node.extra_networks is defined %}
           {% for net in node.extra_networks %}
           --network {{ net }}

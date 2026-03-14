@@ -1,0 +1,40 @@
+---
+# Usage:
+#   ansible-playbook playbooks/vm-destroy.yml -e @inventory/group_vars/vms/example.yml
+- name: Destroy VMs
+  hosts: hypervisors
+  gather_facts: false
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - vms is defined
+          - vms | length > 0
+        fail_msg: "Load a VM var file with -e @inventory/group_vars/vms/<name>.yml"
+
+  tasks:
+    - name: "{{ vm.name }} -- destroy VM"
+      ansible.builtin.command:
+        cmd: "virsh destroy {{ vm.name }}"
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm
+      register: vm_destroy
+      failed_when: vm_destroy.rc != 0 and 'domain is not running' not in vm_destroy.stderr
+      changed_when: vm_destroy.rc == 0
+
+    - name: "{{ vm.name }} -- undefine VM"
+      ansible.builtin.command:
+        cmd: "virsh undefine {{ vm.name }} --remove-all-storage --nvram"
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm
+      register: vm_undefine
+      failed_when: vm_undefine.rc != 0 and 'failed to get domain' not in vm_undefine.stderr
+      changed_when: vm_undefine.rc == 0
+
+  post_tasks:
+    - name: VMs destroyed
+      ansible.builtin.debug:
+        msg: "Removed: {{ vms | map(attribute='name') | join(', ') }}"
