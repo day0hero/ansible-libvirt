@@ -26,6 +26,18 @@
           {{ node.disk_gb | default(vm_defaults.disk_gb) }}G
         creates: "{{ libvirt_pool_path }}/{{ node.name }}.qcow2"
 
+    - name: "{{ node.name }} -- customize image (SSH key + optional password)"
+      when: node.skip_customize | default(false) | bool == false
+      ansible.builtin.command:
+        cmd: >-
+          virt-customize -a {{ libvirt_pool_path }}/{{ node.name }}.qcow2
+          --ssh-inject {{ node.ssh_user | default('root') }}:string:"{{ node.ssh_key | default(ssh_public_key) }}"
+          {% if node.root_password is defined %}
+          --root-password password:{{ node.root_password }}
+          {% endif %}
+          --selinux-relabel
+      changed_when: true
+
     - name: "{{ node.name }} -- resolve primary network"
       ansible.builtin.set_fact:
         _primary_network: "{{ node.network | default('network=' + cluster_network.name) }}"
